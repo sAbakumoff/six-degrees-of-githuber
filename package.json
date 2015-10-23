@@ -3,6 +3,20 @@
   "version": "0.0.0",
   "description": "",
   "main": "dataCenter.js",
+  "dependencies": {
+    "browserify": "*",
+    "superagent": "*",
+    "watchify" : "*"
+  },
+  "devDependencies": {
+    "watchify": "^2.1.1"
+  },
+  "scripts": {
+    "compile-less" : "lessc --clean-css=--s0 ./less/main.less Content/bundle.css",
+    "start": "node node_modules/watchify/bin/cmd -o Scripts/bundle.js -v -d .",
+    "minify": "SET NODE_ENV=production && browserify . | uglifyjs -cm > Scripts/bundle.min.js"
+  },
+
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1"
   },
