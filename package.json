@@ -1,0 +1,19 @@
+{
+  "name": "six-degrees-of-githuber",
+  "version": "0.0.0",
+  "description": "",
+  "main": "dataCenter.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/sAbakumoff/six-degrees-of-githuber.git"
+  },
+  "author": "Sergey Abakumoff",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/sAbakumoff/six-degrees-of-githuber/issues"
+  },
+  "homepage": "https://github.com/sAbakumoff/six-degrees-of-githuber"
+}
