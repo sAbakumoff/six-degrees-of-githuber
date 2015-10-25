@@ -6,18 +6,6 @@ var dataCenter = require('./dataCenter');
 var utils = require('./utils');
 var Promise = require('native-promise-only');
 
-function getUsersStarredRepositories(users){
-    return users.map(function(user){
-        return dataCenter.getUserStarredRepositories(user.login);
-    })
-}
-
-function getReposStargazer(repos){
-    return repos.map(function(repo){
-        return dataCenter.getRepositoryStargazers(repo.full_name);
-    })
-}
-
 var handledRepos = {};
 var handledUsers = {};
 
