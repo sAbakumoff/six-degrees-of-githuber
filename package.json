@@ -2,17 +2,18 @@
   "name": "six-degrees-of-githuber",
   "version": "0.0.0",
   "description": "",
-  "main": "dataCenter.js",
+  "main": "scripts/githubCrawler.js",
   "dependencies": {
     "browserify": "*",
     "superagent": "*",
+    "native-promise-only" : "*",
     "watchify" : "*"
   },
   "devDependencies": {
     "watchify": "^2.1.1"
   },
   "scripts": {
-    "compile-less" : "lessc --clean-css=--s0 ./less/main.less Content/bundle.css",
+    "compile-js" : "node node_modules/browserify/bin/cmd . -o scripts/bundle.js",
     "start": "node node_modules/watchify/bin/cmd -o Scripts/bundle.js -v -d .",
     "minify": "SET NODE_ENV=production && browserify . | uglifyjs -cm > Scripts/bundle.min.js"
   },
