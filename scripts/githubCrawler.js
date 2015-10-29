@@ -2,67 +2,83 @@
  * Created by SergeyA on 10/23/2015.
  */
 
-var dataCenter = require('./dataCenter');
-var utils = require('./utils');
+
 var Promise = require('native-promise-only');
+var scrapper = require('github-scraper');
+var superagent = require('superagent');
 
-var handledRepos = {};
-var handledUsers = {};
+if(typeof basicUrl === 'undefined')
+return console.log('Please provide the neo4j address');
 
-var crawler = {
-  start : function(userId, cb){
-      if(!utils.isFunction(cb)){
-          throw new Error('Invalid usage : the callback is required')
-      }
-
-      function err(err){
-          console.log('The following error occured', err);
-      }
-
-      function getReposStargazers(repos, stargazersCallback){
-          repos.forEach(function(repo){
-              var repoId = repo.full_name;
-              if(!handledRepos.hasOwnProperty(repoId)){
-                  handledRepos[repoId] = true;
-                  dataCenter.getRepositoryStargazers(repoId).then(stargazersCallback, err);
-              }
-          })
-      }
-
-      function getUsersStarredRepos(users, repositoriesCalback){
-          users.forEach(function(user){
-              if(!handledUsers.hasOwnProperty(user.login)){
-                  handledUsers[user.login] = true;
-                  dataCenter.getUserStarredRepositories(user.login).then(repositoriesCalback, err);
-              }
-          });
-      }
+var createUserNodeUrl = basicUrl + 'index/node/User?uniqueness=create_or_fail';
 
 
-      var followers = dataCenter.getUserFollowers(userId);
-      followers.then(function(followers){
-          getUsersStarredRepos(followers, cb);
-      }, err);
+
+function create_node_response(resolve, reject){
+    return function(err, res){
+        if(err){
+            return void reject(err);
+        }
+        if(res.status === 201){ // created
+            return void resolve(res.body.metadata.id);
+        }
+        return void reject(res.status);
+    }
+    
+}
+
+function createUserNode(login){
+    
+    var nodeData = {
+        key: 'login',
+        value: login,
+        properties:{
+            login : login
+        }
+    };
+    
+    return new Promise(function(resolve, reject){
+                            superagent.post(createUserNodeUrl).auth(userId, pwd).send(nodeData).end(create_node_response(resolve, reject));
+                       });
+}
 
 
-      var starredRepositories = dataCenter.getUserStarredRepositories(userId);
-      starredRepositories.then(function(repositores){
-          getReposStargazers(repositores, function(stargazers){
-              getUsersStarredRepos(stargazers, cb);
-          })
-      }, err)
+function scrapePage(url){
+    return new Promise(function(resolve, reject){
+                       scrapper(url, function(err, data){
+                                if(err){
+                                    return reject(err);
+                                }
+                                resolve(data);
+                                })
+                       })
+}
 
-  }
-};
+function err(err){
+    console.log(err);
+}
 
+function scrapePaginatedData(url, cb, page){
+    page = page || 1;
+    scrapePage(url + '?page=' + page).then(
+                                           function(data){
+                                           cb(data.entries);
+                                           if(data.next_page)
+                                           scrapePaginatedData(url, cb, page + 1);
+                                           },err);
+}
 
-crawler.start('sergeyt', function(repos){
-/*
-   repos.forEach(function(r){
-       console.log(r.full_name);
-   })
-*/
-});
+function scrapeUserFollowers(login, cb){
+    scrapePaginatedData(login+'/followers', cb);
+}
 
+function scrapeUserFollowees(login, cb){
+    scrapePaginatedData(login + '/following', cb);
+}
 
-//module.exports = crawler;
+scrapeUserFollowees('sAbakumoff', function(followers){
+                    followers.forEach(function(f){
+                                      createUserNode(f).then(function(res){console.log('created node', res)}, function(err){console.log('error', err)});
+                                      });
+                    });
+

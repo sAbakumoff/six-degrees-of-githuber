@@ -7,6 +7,7 @@
     "browserify": "*",
     "superagent": "*",
     "native-promise-only" : "*",
+    "github-scraper" : "*",
     "watchify" : "*"
   },
   "devDependencies": {
