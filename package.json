@@ -2,25 +2,11 @@
   "name": "six-degrees-of-githuber",
   "version": "0.0.0",
   "description": "",
-  "main": "scripts/githubCrawler.js",
   "dependencies": {
-    "browserify": "*",
     "superagent": "*",
     "native-promise-only" : "*",
     "github-scraper" : "*",
-    "watchify" : "*"
-  },
-  "devDependencies": {
-    "watchify": "^2.1.1"
-  },
-  "scripts": {
-    "compile-js" : "node node_modules/browserify/bin/cmd . -o scripts/bundle.js",
-    "start": "node node_modules/watchify/bin/cmd -o Scripts/bundle.js -v -d .",
-    "minify": "SET NODE_ENV=production && browserify . | uglifyjs -cm > Scripts/bundle.min.js"
-  },
-
-  "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+	"babel-core" : "*"
   },
   "repository": {
     "type": "git",
