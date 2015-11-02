@@ -6,10 +6,28 @@
 var Promise = require('native-promise-only');
 var scrapper = require('github-scraper');
 var superagent = require('superagent');
-if(typeof basicUrl === 'undefined')
-return console.log('Please provide the neo4j address');
 
-var createUserNodeUrl = basicUrl + 'index/node/User?uniqueness=get_or_create';
+var basicUrl = 'http://localhost:7474/db/data/';
+var userId = 'neo4j';
+
+if(typeof pwd === 'undefined')
+  return console.log('Please provide the neo4j password!');
+
+
+var userNodeIndexLabel = 'User';
+var followRelationIndexLabel = 'Follow';
+var repositoryIndexLabel = 'Repository';
+var starRelationIndexLabel = 'Starred';
+// etc.
+
+var uniquenessSetting = '/?uniqueness=get_or_create';
+
+var createUserNodeUrl = basicUrl + 'index/node/' + userNodeIndexLabel + uniquenessSetting;
+var createFollowRelationUrl =  basicUrl + 'index/relationship/' + followRelationIndexLabel +  uniquenessSetting;
+
+var indexUrl = basicUrl + 'schema/index/';
+var nodeUrl = basicUrl + 'node/';
+
 
 var userStatus = {
     handled : 0,
@@ -63,48 +81,60 @@ function create_general_response(resolve, reject, action){
 }
 
 function setNodeProperties(nodeId, properties){
-    return new Promise(function(resolve, reject){
-                       superagent
-                       .put(basicUrl + 'node/' + nodeId + '/properties')
-                       .auth(userId, pwd)
-                       .send(properties)
-                       .end(create_general_response(resolve, reject, 'set props'));
-                       });
+  return new Promise(function(resolve, reject){
+    superagent
+    .put(nodeUrl + nodeId + '/properties')
+    .auth(userId, pwd)
+    .send(properties)
+    .end(create_general_response(resolve, reject, 'set props'));
+  });
+}
+
+function setNodeLabel(nodeId, label){
+  return new Promise(function(resolve, reject){
+    superagent
+    .post(nodeUrl + nodeId + '/labels')
+    .auth(userId, pwd)
+    .send([label])
+    .end(create_general_response(resolve, reject, 'set label'))
+  });
 }
 
 function createUserNode(login, status){
+  var nodeData = {
+    key: 'login',
+    value: login,
+    properties:{
+      login : login,
+      status : status
+    }
+  };
     
-    var nodeData = {
-        key: 'login',
-        value: login,
-        properties:{
-            login : login,
-            status : status
-        }
-    };
-    
-    return new Promise(function(resolve, reject){
-                            superagent
-                       .post(createUserNodeUrl)
-                       .auth(userId, pwd)
-                       .send(nodeData)
-                       .end(create_node_response(resolve, reject, 'user'));
-                       });
+  return new Promise(function(resolve, reject){
+    superagent
+    .post(createUserNodeUrl)
+    .auth(userId, pwd)
+    .send(nodeData)
+    .end(create_node_response(resolve, reject, 'user'));
+  });
 }
 
-function addUsersRelation(fromId, toId, type){
-    var relationData = {
-        to : basicUrl + 'node/' + toId,
-        type : type
-    };
-    var addRelationUrl = basicUrl + 'node/' + fromId + '/relationships';
-    return new Promise(function(resolve, reject){
-                       superagent
-                       .post(addRelationUrl)
-                       .auth(userId, pwd)
-                       .send(relationData)
-                       .end(create_node_response(resolve, reject, 'relation'));
-                       });
+function addFollowerRelation(follower, followee){
+  var relationData = {
+    key : 'login',
+    value : follower.id + '-' + followee.id,
+    start : nodeUrl + follower.id,
+    end : nodeUrl + followee.id,
+    type : 'follow'
+  };
+  
+  return new Promise(function(resolve, reject){
+    superagent
+    .post(createFollowRelationUrl)
+    .auth(userId, pwd)
+    .send(relationData)
+    .end(create_node_response(resolve, reject, 'relation'));
+  });
 }
 
 
@@ -143,14 +173,13 @@ function scrapeUserFollowees(login, cb){
 }
 
 
-
-(function traverse(login){
+function traverse(login){
  
     function addFollower(user, follower_login, reverse){
  
         var addRelationFunc = reverse ?
-                follower => addUsersRelation(user.id, follower.id, 'follow') :
-                follower => addUsersRelation(follower.id, user.id, 'follow' );
+                follower => addFollowerRelation(user, follower) :
+                follower => addFollowerRelation(follower, user);
  
         createUserNode(follower_login, userStatus.created)
  
@@ -170,8 +199,7 @@ function scrapeUserFollowees(login, cb){
  
         if(user.status === nodeStatus.created){
             // this is the new user, process normally
-            processUser(user);
- 
+            setNodeLabel(user.id, 'User').then(() => processUser(user));
         }
         else if(user.status === nodeStatus.existing){
             if(user.data.status === userStatus.handled) {
@@ -180,7 +208,7 @@ function scrapeUserFollowees(login, cb){
             }
             else if(user.data.status === userStatus.created){
                 var userDataUpdated = Object.assign({}, user.data, {status : userStatus.handled});
-                setNodeProperties(user.id, userDataUpdated).then(() => {processUser(user)});
+                setNodeProperties(user.id, userDataUpdated).then(()=>setNodeLabel(user.id, 'User')).then(() => {processUser(user)});
             }else{
                 return console.log('unexpected response from server:', response);
             }
@@ -188,6 +216,22 @@ function scrapeUserFollowees(login, cb){
  
     }
     createUserNode(login, userStatus.handled).then(user_created);
- })('sAbakumoff');
+ }
 
+ function createIndex(indexLabel, indexKeys){
+  return new Promise(function(resolve, reject){
+    superagent
+    .post(indexUrl + indexLabel)
+    .auth(userId, pwd)
+    .send({property_keys: indexKeys })
+    .end(create_general_response(resolve, reject, 'creating ' + indexLabel + ' action'));
+  });
+ }
+
+ //createIndex(userNodeIndexLabel, ['login']).then(()=>createIndex(followRelationIndexLabel, ['login'])).then(()=>{console.log('that is all folks!')});
+ traverse('sAbakumoff');
+
+// what's up with hangouts:
+//  - - - GitHub Scraper SWITCHER FAIL >> https://github.comhangouts/followers?page=1  - - - 
+// what's up with internal server error??
 
