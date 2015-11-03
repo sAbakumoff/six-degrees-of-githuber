@@ -44,6 +44,10 @@ function create_node_response(resolve, reject, data_type){
     return function(err, res){
         if(err){
             console.log('error creating ' + data_type + ' : ' + err.status);
+            if(err.status == 500){
+              console.log('internal server errror', err);
+              process.exit(1); // terminate the process entirely!
+            }
             return void reject(err);
         }
         if(res.status === 201){ // created
@@ -165,11 +169,11 @@ function scrapePaginatedData(url, cb, page){
 }
 
 function scrapeUserFollowers(login, cb){
-    scrapePaginatedData(login+'/followers', cb);
+    scrapePaginatedData('/' + login+'/followers', cb);
 }
 
 function scrapeUserFollowees(login, cb){
-    scrapePaginatedData(login + '/following', cb);
+    scrapePaginatedData('/' + login + '/following', cb);
 }
 
 
@@ -231,7 +235,5 @@ function traverse(login){
  //createIndex(userNodeIndexLabel, ['login']).then(()=>createIndex(followRelationIndexLabel, ['login'])).then(()=>{console.log('that is all folks!')});
  traverse('sAbakumoff');
 
-// what's up with hangouts:
-//  - - - GitHub Scraper SWITCHER FAIL >> https://github.comhangouts/followers?page=1  - - - 
 // what's up with internal server error??
 
