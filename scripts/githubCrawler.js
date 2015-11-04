@@ -158,43 +158,51 @@ function err(err){
     console.log(err);
 }
 
-function scrapePaginatedData(url, cb, page){
+
+function scrapePaginatedData(url, page, storage, promise){
     page = page || 1;
-    scrapePage(url + '?page=' + page).then(
-                                           function(data){
-                                           cb(data.entries);
-                                           if(data.next_page)
-                                           scrapePaginatedData(url, cb, page + 1);
-                                           },err);
+    storage = storage || [];
+    promise = promise || new Promise();
+
+    scrapePage(url + '?page=' + page).then(function(data){
+        storage.push(...data.entries);
+        if(data.next_page)
+            scrapePaginatedData(url, page + 1, storage, promise);
+        else
+            promise.resolve(storage);
+    }, err);
+    return promise;
 }
 
 function scrapeUserFollowers(login, cb){
-    scrapePaginatedData('/' + login+'/followers', cb);
+    return scrapePaginatedData('/' + login+'/followers');
 }
 
 function scrapeUserFollowees(login, cb){
-    scrapePaginatedData('/' + login + '/following', cb);
+    return scrapePaginatedData('/' + login + '/following');
 }
 
 
 function traverse(login){
  
-    function addFollower(user, follower_login, reverse){
- 
+    function addFollower(user, follower_login, reverse){ 
         var addRelationFunc = reverse ?
                 follower => addFollowerRelation(user, follower) :
                 follower => addFollowerRelation(follower, user);
- 
-        createUserNode(follower_login, userStatus.created)
- 
-        .then(addRelationFunc)
- 
-        .then( () => { traverse(follower_login) } );
+        
+        return new Promise(function(resolve, reject){
+            createUserNode(follower_login, userStatus.created).then(addRelationFunc, reject).then( () => { resolve(follower_login) }, reject );
+        });
     }
 
  
     function processUser(user){
-        scrapeUserFollowers(user.data.login, (followers) => followers.forEach(follower => addFollower(user, follower)));
+         //scrapeUserFollowers(user.data.login, (followers) => followers.forEach(follower => addFollower(user, follower)));
+         scrapeUserFollowers(user.data.login, (followers) => {
+            var promises = followers.map(f=>addFollower(f));
+            Promise.all(promises).then()
+
+         });
  
         scrapeUserFollowees(user.data.login, (followees) => followees.forEach(followee => addFollower(user, followee, true)));
     }
