@@ -21,5 +21,10 @@ function getSquares(maxNum){
 
 
 
-getSquares(3).then(storage => console.log(storage));
+//getSquares(3).then(storage => console.log(storage));
 
+var p = () => 'done';
+var p1 = () => {'done';}
+
+console.log(p());
+console.log(p1());

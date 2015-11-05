@@ -94,6 +94,8 @@ function setNodeProperties(nodeId, properties){
   });
 }
 
+
+//todo : create node and set label!
 function setNodeLabel(nodeId, label){
   return new Promise(function(resolve, reject){
     superagent
@@ -123,6 +125,7 @@ function createUserNode(login, status){
   });
 }
 
+
 function addFollowerRelation(follower, followee){
   var relationData = {
     key : 'login',
@@ -142,92 +145,112 @@ function addFollowerRelation(follower, followee){
 }
 
 
-
-function scrapePage(url){
+function scrapePage(url, page){
     return new Promise(function(resolve, reject){
-                       scrapper(url, function(err, data){
+                            scrapper(url, function(err, data){
                                 if(err){
                                     return reject(err);
                                 }
                                 resolve(data);
-                                })
-                       })
+                            })
+                    })
 }
 
 function err(err){
     console.log(err);
 }
 
-
-function scrapePaginatedData(url, page, storage, promise){
-    page = page || 1;
-    storage = storage || [];
-    promise = promise || new Promise();
-
-    scrapePage(url + '?page=' + page).then(function(data){
-        storage.push(...data.entries);
-        if(data.next_page)
-            scrapePaginatedData(url, page + 1, storage, promise);
-        else
-            promise.resolve(storage);
-    }, err);
-    return promise;
+function delay(ms){
+    if(ms > 0)
+        console.log('waiting for ' + ms + 'ms....');
+    return new Promise(function(resolve){
+        setTimeout(resolve, ms);
+    });
 }
 
-function scrapeUserFollowers(login, cb){
+// idea : always take 40 pages, then put off the requests by adding property to user node. 
+function scrapePaginatedData(url){
+    var storage = [];
+    return Promise.resolve(1).then(function next(page){
+        if(page > 0 && page <= 40)
+            return scrapePage(url + '?page=' + page, page).then((data) => {
+                storage.push(...data.entries);
+                if(data.next_page)
+                    return page + 1;
+                else
+                    return -1;
+            }).then(next);
+        else
+            return storage;
+    });
+}
+
+function scrapeUserFollowers(login){
     return scrapePaginatedData('/' + login+'/followers');
 }
 
-function scrapeUserFollowees(login, cb){
+function scrapeUserFollowees(login){
     return scrapePaginatedData('/' + login + '/following');
 }
 
+function addUserFollowers(user, followers, reverse){
+    var addRelationFunc = reverse ?
+        follower => addFollowerRelation(user, follower) :
+        follower => addFollowerRelation(follower, user);   
+    
+    return Promise.resolve(0).then(function next(index){
+        if(index < followers.length)
+            return createUserNode(followers[index], userStatus.created).then(addRelationFunc).then(()=>index+1).then(next);
+        else
+            return followers;
+
+    });
+}
+
+var users = ['torvalds'];
+
+Promise.resolve(0).then(function next(index){
+    if(index < users.length)
+        return traverse(users[index]).then(()=>index+1).then(next);
+    else
+        return 'done';
+}).then(()=>console.log('done working with users'), (err)=>console.log('Promise error: ', err));
 
 function traverse(login){
- 
-    function addFollower(user, follower_login, reverse){ 
-        var addRelationFunc = reverse ?
-                follower => addFollowerRelation(user, follower) :
-                follower => addFollowerRelation(follower, user);
-        
-        return new Promise(function(resolve, reject){
-            createUserNode(follower_login, userStatus.created).then(addRelationFunc, reject).then( () => { resolve(follower_login) }, reject );
-        });
-    }
 
- 
+    console.log('============= handling user ' + login + ' ==================');
+  
     function processUser(user){
-         //scrapeUserFollowers(user.data.login, (followers) => followers.forEach(follower => addFollower(user, follower)));
-         scrapeUserFollowers(user.data.login, (followers) => {
-            var promises = followers.map(f=>addFollower(f));
-            Promise.all(promises).then()
-
-         });
- 
-        scrapeUserFollowees(user.data.login, (followees) => followees.forEach(followee => addFollower(user, followee, true)));
+        return scrapeUserFollowers(user.data.login)
+                .then(followers => addUserFollowers(user, followers))
+                .then(followers => users.push(...followers))
+                
+                .then(() => scrapeUserFollowees(user.data.login))
+                .then(followees => addUserFollowers(user, followees, true))
+                .then(followees => users.push(...followees));
     }
  
     function user_created(user){
  
         if(user.status === nodeStatus.created){
             // this is the new user, process normally
-            setNodeLabel(user.id, 'User').then(() => processUser(user));
+            return setNodeLabel(user.id, 'User').then(() => processUser(user));
         }
         else if(user.status === nodeStatus.existing){
             if(user.data.status === userStatus.handled) {
                 console.log('user ' + login + ' has already been handled');
-                return;
+                return 'done';
             }
             else if(user.data.status === userStatus.created){
                 var userDataUpdated = Object.assign({}, user.data, {status : userStatus.handled});
-                setNodeProperties(user.id, userDataUpdated).then(()=>setNodeLabel(user.id, 'User')).then(() => {processUser(user)});
+                return setNodeProperties(user.id, userDataUpdated).then(()=>setNodeLabel(user.id, 'User')).then(() => processUser(user));
             }else{
                 return console.log('unexpected response from server:', response);
             }
         }
  
     }
-    createUserNode(login, userStatus.handled).then(user_created);
+    return createUserNode(login, userStatus.handled).then(user_created);
  }
 
  function createIndex(indexLabel, indexKeys){
@@ -241,7 +264,7 @@ function traverse(login){
  }
 
  //createIndex(userNodeIndexLabel, ['login']).then(()=>createIndex(followRelationIndexLabel, ['login'])).then(()=>{console.log('that is all folks!')});
- traverse('sAbakumoff');
+ //traverse('0xd4d');
 
 // what's up with internal server error??
 
