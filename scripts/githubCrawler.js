@@ -4,8 +4,8 @@
 
 
 var Promise = require('native-promise-only');
-var scrapper = require('github-scraper');
 var superagent = require('superagent');
+var colors = require('colors');
 
 var basicUrl = 'http://localhost:7474/db/data/';
 var userId = 'neo4j';
@@ -53,7 +53,6 @@ function create_node_response(resolve, reject, data_type){
         if(res.status === 201){ // created
             console.log('created ' + data_type + ' : ' + JSON.stringify(res.body.data));
             return void resolve({
-                                status : nodeStatus.created,
                                 id : res.body.metadata.id,
                                 data : res.body.data
             });
@@ -61,7 +60,6 @@ function create_node_response(resolve, reject, data_type){
         if(res.status === 200){ // OK
             console.log('obtained ' + data_type + ' : ' + JSON.stringify(res.body.data));
             return void resolve({
-                                status: nodeStatus.existing,
                                 id : res.body.metadata.id,
                                 data : res.body.data
             });
@@ -79,7 +77,7 @@ function create_general_response(resolve, reject, action){
         }
         else{
             console.log(action + ' succeded');
-            return resolve(res.status);
+            return resolve(res.body);
         }
     }
 }
@@ -96,13 +94,17 @@ function setNodeProperties(nodeId, properties){
 
 
 //todo : create node and set label!
-function setNodeLabel(nodeId, label){
+function setNodeLabel(node, label){
   return new Promise(function(resolve, reject){
     superagent
-    .post(nodeUrl + nodeId + '/labels')
+    .post(nodeUrl + node.id + '/labels')
     .auth(userId, pwd)
     .send([label])
-    .end(create_general_response(resolve, reject, 'set label'))
+    .end(function(err, res){
+        if(err)
+            return reject(err);
+        resolve(node);
+    })
   });
 }
 
@@ -122,7 +124,7 @@ function createUserNode(login, status){
     .auth(userId, pwd)
     .send(nodeData)
     .end(create_node_response(resolve, reject, 'user'));
-  });
+  }).then(userNode=>setNodeLabel(userNode, 'User'))
 }
 
 
@@ -145,54 +147,6 @@ function addFollowerRelation(follower, followee){
 }
 
 
-function scrapePage(url, page){
-    return new Promise(function(resolve, reject){
-                            scrapper(url, function(err, data){
-                                if(err){
-                                    return reject(err);
-                                }
-                                resolve(data);
-                            })
-                    })
-}
-
-function err(err){
-    console.log(err);
-}
-
-function delay(ms){
-    if(ms > 0)
-        console.log('waiting for ' + ms + 'ms....');
-    return new Promise(function(resolve){
-        setTimeout(resolve, ms);
-    });
-}
-
-// idea : always take 40 pages, then put off the requests by adding property to user node. 
-function scrapePaginatedData(url){
-    var storage = [];
-    return Promise.resolve(1).then(function next(page){
-        if(page > 0 && page <= 40)
-            return scrapePage(url + '?page=' + page, page).then((data) => {
-                storage.push(...data.entries);
-                if(data.next_page)
-                    return page + 1;
-                else
-                    return -1;
-            }).then(next);
-        else
-            return storage;
-    });
-}
-
-function scrapeUserFollowers(login){
-    return scrapePaginatedData('/' + login+'/followers');
-}
-
-function scrapeUserFollowees(login){
-    return scrapePaginatedData('/' + login + '/following');
-}
-
 function addUserFollowers(user, followers, reverse){
     var addRelationFunc = reverse ?
         follower => addFollowerRelation(user, follower) :
@@ -207,50 +161,49 @@ function addUserFollowers(user, followers, reverse){
     });
 }
 
-var users = ['torvalds'];
+var ghWorker = require('./dataCenter.js');
+
+var users = ['mohamedmansour'];
+
+var len = 100;
 
 Promise.resolve(0).then(function next(index){
-    if(index < users.length)
-        return traverse(users[index]).then(()=>index+1).then(next);
+    if(index < len)
+        return traverse(users[index]).then(()=>next(index+1));
     else
-        return 'done';
-}).then(()=>console.log('done working with users'), (err)=>console.log('Promise error: ', err));
+        return 0;
+}).then(()=>console.log(colors.blue('done working with users')), (err)=>console.log('Promise error: ', err));
 
 function traverse(login){
 
-    console.log('============= handling user ' + login + ' ==================');
+    console.log(colors.blue('Handling user ' + login));
   
     function processUser(user){
-        return scrapeUserFollowers(user.data.login)
+        var userDataUpdated = Object.assign({}, user.data, {status : userStatus.handled});
+        
+        return ghWorker.getUserFollowers(user.data.login)
+                .then(followers => followers.map(f=>f.login))
                 .then(followers => addUserFollowers(user, followers))
                 .then(followers => users.push(...followers))
                 
-                .then(() => scrapeUserFollowees(user.data.login))
+                .then(() => ghWorker.getUserFollowees(user.data.login))
+                .then(followees => followees.map(f=>f.login))
                 .then(followees => addUserFollowers(user, followees, true))
-                .then(followees => users.push(...followees));
+                .then(followees => users.push(...followees))
+                
+                .then(() => setNodeProperties(user.id, userDataUpdated));
     }
  
     function user_created(user){
- 
-        if(user.status === nodeStatus.created){
-            // this is the new user, process normally
-            return setNodeLabel(user.id, 'User').then(() => processUser(user));
-        }
-        else if(user.status === nodeStatus.existing){
             if(user.data.status === userStatus.handled) {
                 console.log('user ' + login + ' has already been handled');
-                return 'done';
+                return 0;
             }
-            else if(user.data.status === userStatus.created){
-                var userDataUpdated = Object.assign({}, user.data, {status : userStatus.handled});
-                return setNodeProperties(user.id, userDataUpdated).then(()=>setNodeLabel(user.id, 'User')).then(() => processUser(user));
-            }else{
-                return console.log('unexpected response from server:', response);
-            }
-        }
- 
+            else{
+                return processUser(user);
+            } 
     }
-    return createUserNode(login, userStatus.handled).then(user_created);
+    return createUserNode(login, userStatus.created).then(user_created);
  }
 
  function createIndex(indexLabel, indexKeys){

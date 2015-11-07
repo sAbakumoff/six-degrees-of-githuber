@@ -5,8 +5,7 @@
   "dependencies": {
     "superagent": "*",
     "native-promise-only" : "*",
-    "github-scraper" : "*",
-	"babel-core" : "*"
+    "colors" : "*"
   },
   "repository": {
     "type": "git",
