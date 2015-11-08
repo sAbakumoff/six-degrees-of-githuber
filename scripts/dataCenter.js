@@ -1,42 +1,41 @@
 var Promise = require('native-promise-only');
 var superagent = require('superagent');
-if(ghPwd === undefined)
+var linkParser = require('parse-link-header');
+
+
+if(typeof ghPwd === 'undefined')
     return console.log('please provide github credentials');
 var colors = require('colors');
 
 var githubEndPoint = 'https://api.github.com/';
 
-var userEndPoint = githubEndPoint + 'users/';
+var usersEndPoint = githubEndPoint + 'users/';
+var reposEndPoint = githubEndPoint + 'repos/'
+var orgsEndPoint = githubEndPoint + 'orgs/'
 
-var followersEndPoint = user =>  userEndPoint + user + '/followers';
-var followeesEndPoint = user =>  userEndPoint + user + '/following';
+var followersEndPoint = user =>  usersEndPoint + user + '/followers';
+var followeesEndPoint = user =>  usersEndPoint + user + '/following';
+var userOrgsEndPoint = user => usersEndPoint + user+ '/orgs';
 
-function getLastLinkPage(linkHeader){
-    if(!linkHeader || Object.prototype.toString.call(linkHeader)!='[object String]')
-        return 1;
-    var re = /\&page=(\d+)/;
-    var links = linkHeader.split(',');
-    for(var li=0; li<links.length; li++){
-        var link = links[li];
-         if(link.indexOf('rel="last"') > 0){
-            return (re.exec(link)[1]);
-        }   
-    }
-    return 1;
-}
+var repoStargazersEndPoint = repo => reposEndPoint + repo + '/stargazers';
+var repoContributorsEndPoint = repo => reposEndPoint + repo + '/contributors';
+var repoSubscribersEndPoint = repo => reposEndPoint + repo + '/subscribers';
+var repoForksEndPoint = repo => reposEndPoint + repo + '/forks';
+
+var orgMembersEndPoint = org => orgsEndPoint + org + '/public_members';
+
+var ResultsPerPage = 100; // max number allowed by GitHub.
 
 /*
   'x-ratelimit-limit': '5000',
   'x-ratelimit-remaining': '4998',
-  'x-ratelimit-reset': '1446817687', ==> time to wait??
+  'x-ratelimit-reset': '1446817687', ==> time of rate limit reset in seconds.
 */
 
-function getBasicRequest(url, page_number, per_page){
-    per_page = per_page || 100;
-    page_number = page_number || 1;
-    console.log(colors.green('Github request: ' + url + '?page='+page_number + '&per_page=' + per_page));
+function getBasicRequest(url){
+    console.log(colors.green('Github request: ' + url ));
     return new Promise(function(resolve, reject){
-        superagent.get(url).query({per_page : per_page, page : page_number}).auth(ghUser, ghPwd).end(function(err, res){
+        superagent.get(url).auth(ghUser, ghPwd).query({per_page : ResultsPerPage}).end(function(err, res){
             if(err){
                 reject(err);
             }
@@ -57,33 +56,57 @@ function getBasicRequest(url, page_number, per_page){
     });
 }
 
-function getPageTotal(url, per_page){
-    return getBasicRequest(url, 1, per_page).then(res=>getLastLinkPage(res.header.link));
-}
-
 function getPaginatedData(url){
     var data = [];
-    var worker = page_total => Promise.resolve(1).then(function next(page){
-        if(page <= page_total){
-            return getBasicRequest(url, page).then(res=>{
+    return Promise.resolve(url).then(function next(url){
+        if(url){
+            return getBasicRequest(url).then(res => {
                 data.push(...res.body);
-                return next(page + 1);
+                var links = linkParser(res.header.link);
+                var nextPage = links.next;
+                return next(nextPage ? nextPage.url : null);
             });
         }
         else{
             return data;
         }
     });
-    return getPageTotal(url).then(worker);
 }
 
-module.exports = {
+function getPublicRepositories(url){
+    url = url || githubEndPoint + 'repositories';
+    return new Promise(function(resolve, reject){
+        getBasicRequest(url).then(res => {
+            var links = linkParser(res.header.link);
+            var nextPage = links.next;
+            resolve({repos : res.body, nextLink : nextPage ? nextPage.url : null});
+        });
+    })
+}
+
+
+var dataCenter = module.exports = {
     getUserFollowers : user => getPaginatedData(followersEndPoint(user)),
-    getUserFollowees : user => getPaginatedData(followeesEndPoint(user))
+    getUserFollowees : user => getPaginatedData(followeesEndPoint(user)),
+    getUserOrgs : user => getPaginatedData(userOrgsEndPoint(user)),
+
+    getRepoStargazers : repo => getPaginatedData(repoStargazersEndPoint(repo)),
+    getRepoSubscribers : repo => getPaginatedData(repoSubscribersEndPoint(repo)),
+    getRepoContributors : repo => getPaginatedData(repoContributorsEndPoint(repo)),
+    getRepoForks : repo => getPaginatedData(repoForksEndPoint(repo)),
+
+    getOrgPublicMembers : org => getPaginatedData(orgMembersEndPoint(org)),
+
+    getPublicRepositories : getPublicRepositories
+
 };
 
-/*var user = 'torvalds';
-getPaginatedData(followersEndPoint(user)).then(data=>data.map((d)=>d.login)).then(console.log);*/
+//var org = 'yahoo';
+//getPaginatedData(orgMembersEndPoint(org)).then(data=>data.map((d)=>d.login)).then(console.log);
+
+//dataCenter.getUserFollowers('trietptm').then(data=>data.map(u=>u.login)).then(console.log)
+/*var log = console.log;
+getPublicRepositories().then(resp=>resp.nextLink, log).then(log);*/
 
 
 

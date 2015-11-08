@@ -5,7 +5,8 @@
   "dependencies": {
     "superagent": "*",
     "native-promise-only" : "*",
-    "colors" : "*"
+    "colors" : "*",
+    "parse-link-header" : "*"
   },
   "repository": {
     "type": "git",
