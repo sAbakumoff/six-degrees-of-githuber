@@ -2,6 +2,7 @@ var Promise = require('native-promise-only');
 var superagent = require('superagent');
 var linkParser = require('parse-link-header');
 
+var ghUser = 'sAbakumoff';
 
 if(typeof ghPwd === 'undefined')
     return console.log('please provide github credentials');

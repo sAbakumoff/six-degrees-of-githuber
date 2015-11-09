@@ -7,7 +7,7 @@ var Promise = require('native-promise-only');
 var superagent = require('superagent');
 var colors = require('colors');
 
-var basicUrl = 'http://localhost:7474/db/data/';
+var basicUrl = 'http://localhost:7474/db/data';
 var userId = 'neo4j';
 
 if(typeof pwd === 'undefined')
@@ -20,13 +20,15 @@ var repositoryIndexLabel = 'Repository';
 var starRelationIndexLabel = 'Starred';
 // etc.
 
+
+var batchUrl = basicUrl + '/batch';
 var uniquenessSetting = '/?uniqueness=get_or_create';
 
-var createUserNodeUrl = basicUrl + 'index/node/' + userNodeIndexLabel + uniquenessSetting;
-var createFollowRelationUrl =  basicUrl + 'index/relationship/' + followRelationIndexLabel +  uniquenessSetting;
+var createUserNodeUrl = '/index/node/' + userNodeIndexLabel + uniquenessSetting;
+var createFollowRelationUrl =  '/index/relationship/' + followRelationIndexLabel +  uniquenessSetting;
 
 var indexUrl = basicUrl + 'schema/index/';
-var nodeUrl = basicUrl + 'node/';
+var nodeUrl = basicUrl + '/node/';
 
 
 var userStatus = {
@@ -38,6 +40,9 @@ var nodeStatus = {
     created : 0,
     existing : 1
 }
+
+
+
 
 function create_node_response(resolve, reject, data_type){
     data_type = data_type || 'node';
@@ -108,23 +113,27 @@ function setNodeLabel(node, label){
   });
 }
 
-function createUserNode(login, status){
-  var nodeData = {
-    key: 'login',
-    value: login,
-    properties:{
-      login : login,
-      status : status
+function createUserNode(login){
+    var q = {
+        query : 'MATCH (me:User {login : {login}}) FOREACH (f IN {followers} | MERGE (u:User {login : f}) MERGE u-[:FOLLOWS]->me)',  
+        params : {
+            login : 'asv2015',
+            followers : ['u1', 'u2', 'u3', 'u4', 'u5', 'u6'],
+            status : userStatus.created
+        }
     }
-  };
     
-  return new Promise(function(resolve, reject){
-    superagent
-    .post(createUserNodeUrl)
-    .auth(userId, pwd)
-    .send(nodeData)
-    .end(create_node_response(resolve, reject, 'user'));
-  }).then(userNode=>setNodeLabel(userNode, 'User'))
+    return new Promise(function(resolve, reject){
+        superagent
+        .post(basicUrl + '/cypher')
+        .auth(userId, pwd)
+        .send(q)
+        .end(function(err, res){
+            if(err)
+                return reject(err);
+            resolve(res.body);
+        });
+    });
 }
 
 
@@ -163,20 +172,66 @@ function addUserFollowers(user, followers, reverse){
 
 var ghWorker = require('./dataCenter.js');
 
-var users = ['mohamedmansour'];
+var users = ['sAbakumoff'];
 
-var len = 100;
+var len = 1;
 
-Promise.resolve(0).then(function next(index){
+/*Promise.resolve(0).then(function next(index){
     if(index < len)
         return traverse(users[index]).then(()=>next(index+1));
     else
         return 0;
-}).then(()=>console.log(colors.blue('done working with users')), (err)=>console.log('Promise error: ', err));
+}).then(()=>console.log(colors.blue('done working with users')), (err)=>console.log('Promise error: ', err));*/
+
+
+createUserNode('asv2015').then(p=>console.log(JSON.stringify(p)), console.log);
+
+
 
 function traverse(login){
 
     console.log(colors.blue('Handling user ' + login));
+
+    function processUser2(user){
+        var followersToJobs = (followers) => {
+            var jobs = [];
+            followers.forEach((follower, index) => {
+                var login = follower.login;
+                jobs.push({
+                    method : "POST",
+                    to : createUserNodeUrl,
+                    id : index * 2,
+                    body : {
+                        key: 'login',
+                        value: login,
+                        properties:{
+                            login : login,
+                            status : status
+                        }
+                    }                    
+                });
+                jobs.push({
+                    method : "POST",
+                    to : createFollowRelationUrl,
+                    id : index * 2 + 1,
+                    body : {
+                        key : 'login',
+                        value : '{' + index + '}' + '-' + user.id,
+                        start : '/node/{' + index + '}',
+                        end : '/node/' + user.id,
+                        type : 'follow'
+
+                    }
+                });
+            })
+        }
+
+        ghWorker.getUserFollowers(user.data.login)
+        .then(followers => followersToJobs(followers))
+        .then(jobs => batchJobs(jobs))
+        .then(console.log, console.log)
+
+    }
   
     function processUser(user){
         var userDataUpdated = Object.assign({}, user.data, {status : userStatus.handled});
@@ -200,7 +255,7 @@ function traverse(login){
                 return 0;
             }
             else{
-                return processUser(user);
+                return processUser2(user);
             } 
     }
     return createUserNode(login, userStatus.created).then(user_created);
