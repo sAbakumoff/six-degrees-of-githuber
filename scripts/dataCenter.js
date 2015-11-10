@@ -57,19 +57,22 @@ function getBasicRequest(url){
     });
 }
 
-function getPaginatedData(url){
-    var data = [];
+function getPaginatedData(url, dataHandler){
+    var defaultHandler = data => console.log;
+    dataHandler = dataHandler || defaultHandler;
     return Promise.resolve(url).then(function next(url){
         if(url){
-            return getBasicRequest(url).then(res => {
-                data.push(...res.body);
-                var links = linkParser(res.header.link);
-                var nextPage = links.next;
-                return next(nextPage ? nextPage.url : null);
+            return getBasicRequest(url).then(res => { 
+                var nextPage = null;
+                if(res.header && res.header.link){          
+                    var links = linkParser(res.header.link);
+                    nextPage = links.next;
+                }
+                return dataHandler(res.body).then(()=>next(nextPage ? nextPage.url : null));
             });
         }
         else{
-            return data;
+            return 0;
         }
     });
 }
@@ -87,8 +90,8 @@ function getPublicRepositories(url){
 
 
 var dataCenter = module.exports = {
-    getUserFollowers : user => getPaginatedData(followersEndPoint(user)),
-    getUserFollowees : user => getPaginatedData(followeesEndPoint(user)),
+    getUserFollowers : (user, dataHandler) => getPaginatedData(followersEndPoint(user), dataHandler),
+    getUserFollowees : (user, dataHandler) => getPaginatedData(followeesEndPoint(user), dataHandler),
     getUserOrgs : user => getPaginatedData(userOrgsEndPoint(user)),
 
     getRepoStargazers : repo => getPaginatedData(repoStargazersEndPoint(repo)),
@@ -102,12 +105,20 @@ var dataCenter = module.exports = {
 
 };
 
+/*function printData(data){
+    console.log('next portion of data: ', data);
+    return Promise.resolve(0);
+}
+
+dataCenter.getUserFollowers('trietptm', printData).then(exitCode => console.log);*/
+
 //var org = 'yahoo';
 //getPaginatedData(orgMembersEndPoint(org)).then(data=>data.map((d)=>d.login)).then(console.log);
 
 //dataCenter.getUserFollowers('trietptm').then(data=>data.map(u=>u.login)).then(console.log)
 /*var log = console.log;
 getPublicRepositories().then(resp=>resp.nextLink, log).then(log);*/
+
 
 
 
