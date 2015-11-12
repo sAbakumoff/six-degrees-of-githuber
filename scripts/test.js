@@ -8,4 +8,7 @@ function delay(n){
 	}).then(n=>Promise.resolve(n * 5));
 }
 
-delay(2).then(p=>console.log(p));
+//delay(2).then(p=>console.log(p));
+
+var wait = delay => new Promise(resolve => setTimeout(resolve, delay));
+wait(1000).then();

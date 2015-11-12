@@ -92,14 +92,15 @@ function getPublicRepositories(url){
 var dataCenter = module.exports = {
     getUserFollowers : (user, dataHandler) => getPaginatedData(followersEndPoint(user), dataHandler),
     getUserFollowees : (user, dataHandler) => getPaginatedData(followeesEndPoint(user), dataHandler),
-    getUserOrgs : user => getPaginatedData(userOrgsEndPoint(user)),
+    getUserOrgs : (user, dataHandler) => getPaginatedData(userOrgsEndPoint(user), dataHandler),
+    getOrgPublicMembers : (org, dataHandler) => getPaginatedData(orgMembersEndPoint(org), dataHandler),
 
     getRepoStargazers : repo => getPaginatedData(repoStargazersEndPoint(repo)),
     getRepoSubscribers : repo => getPaginatedData(repoSubscribersEndPoint(repo)),
     getRepoContributors : repo => getPaginatedData(repoContributorsEndPoint(repo)),
     getRepoForks : repo => getPaginatedData(repoForksEndPoint(repo)),
 
-    getOrgPublicMembers : org => getPaginatedData(orgMembersEndPoint(org)),
+    
 
     getPublicRepositories : getPublicRepositories
 
