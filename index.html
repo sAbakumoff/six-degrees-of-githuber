@@ -2,9 +2,85 @@
 <html>
 <head lang="en">
     <meta charset="UTF-8">
-    <title></title>
+    <title>six degrees of github</title>
+    <script type='text/javascript' src='scripts/jquery-1.11.3.min.js'></script>
+    <script type='text/javascript' src='scripts/vis-4.9.0/dist/vis.min.js'></script>
+    <link rel='stylesheet' type='text/css' href='scripts/vis-4.9.0/dist/vis.min.css' />
+    <style type='text/css'>
+    	.ufc{
+    		width : 600px;
+    		height: 400px;
+    		border : 1px solid red;
+    	}
+    </style>
 </head>
+
 <body>
-<script type="text/javascript" src="scripts/bundle.js"></script>
+	<div id="mynetwork" class='ufc'></div>
+	<script type='text/javascript'>
+		function cutString(str, maxLen){
+			if(str.length <= maxLen)
+				return str;
+			return str.substring(0, maxLen - 3) + '...';
+		}
+		function convertData(neo4result){
+			var nodesMap = {};
+			var edges = [];
+			for(var i = 0; i < neo4result.data.length; i++){
+				var graphI = neo4result.data[i].graph;
+				for(var j = 0; j < graphI.nodes.length; j++){
+					var nodeJ = graphI.nodes[j];
+					nodesMap[nodeJ.id] =  {
+						id : nodeJ.id,
+						label : nodeJ.properties.login,
+					}
+				}
+				for(var k = 0; k < graphI.relationships.length; k++){
+					var relK = graphI.relationships[k];
+					edges.push( {
+						from : relK.startNode,
+						to : relK.endNode
+						,label : relK.type
+					})
+				}
+			}
+			var nodes = [];
+			for(var k in nodesMap){
+				nodes.push(nodesMap[k]);
+			}
+			return {
+				nodes : nodes,
+				edges : edges
+			}
+		};
+		$(function(){
+			$.ajax({
+				url : 'scripts/result.json',
+				type : 'get'
+			}).then(function(data){
+				var container = document.getElementById('mynetwork');
+				data = convertData(data);
+				options = {
+					nodes : {
+						shape : 'box',
+						font : {
+							size : 18
+						},
+						physics : false
+					},
+					edges : {
+						arrows : 'to',
+						physics : true
+					},
+					layout : {
+						randomSeed : 3,
+						hierarchical : false
+					}
+				};
+				var network = new vis.Network(container, data, options);
+			}, console.log);
+		})
+	</script>
+	
 </body>
 </html>
