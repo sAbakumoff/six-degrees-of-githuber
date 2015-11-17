@@ -3,8 +3,8 @@ var superagent = require('superagent');
 var colors = require('colors');
 var dataCenter = require('./dataCenter.js');
 
-var basicUrl = 'http://localhost:7474/db/data';
-var userId = 'neo4j'; 
+var basicUrl = 'http://github6.cloudapp.net:1116/db/data';
+var userId = 'neo4j';
 
 if(typeof pwd === 'undefined')
   return console.log('Please provide the neo4j password!');
@@ -47,14 +47,20 @@ function loop(selectQuery, processFunc){
 
 function usersLoop(){
     var selectUnhandledUser = buildTransactionQuery({
-        statement : 'match (u:User) where u.status is null return u limit 1;'
+        statement : 'match (u:User) where u.status is null set u.status={userStatus}.handled return u limit 1;',
+        parameters : {
+            userStatus : entityStatus
+        }
     });    
     loop(selectUnhandledUser, loginProcedure);
 }
 
 function orgLoop(){
     var selectUnhandledOrg = buildTransactionQuery({
-        statement : 'match (o:Org) where o.status is null return o limit 1;'
+        statement : 'match (o:Org) where o.status is null set u.status={orgStatus}.handled return o limit 1;',
+        parameters : {
+            orgStatus : entityStatus
+        }
     });
     loop(selectUnhandledOrg, orgProcedure);  
 }
@@ -96,14 +102,7 @@ function orgProcedure(login){
         return executeCypherQuery(query);         
     }
 
-    var lockNodeQuery = buildTransactionQuery({
-        statement : 'MERGE (org:Org {login : {login} }) SET org.status = {status}.handled',
-        parameters : {
-            login : login,
-            status : entityStatus
-        }
-    });
-    return executeCypherQuery(lockNodeQuery).then(()=>dataCenter.getOrgPublicMembers(login, orgMembersHandler))
+    return dataCenter.getOrgPublicMembers(login, orgMembersHandler);
 }
 
 function loginProcedure(login){
@@ -138,17 +137,9 @@ function loginProcedure(login){
             return executeCypherQuery(query);    
         }
     }
-    var lockNodeQuery = buildTransactionQuery({
-        statement : 'MERGE (me:User {login : {login} }) SET me.status = {userStatus}.handled',
-        parameters : {
-            login : login,
-            userStatus : entityStatus
-        }
-    });
-    return executeCypherQuery(lockNodeQuery)
-    .then(()=>dataCenter.getUserFollowers(login, followersHandler()))
-    .then(()=>dataCenter.getUserFollowees(login, followersHandler(true)))
-    .then(()=>dataCenter.getUserOrgs(login, orgsHandler));
+    return  dataCenter.getUserFollowers(login, followersHandler())
+            .then(()=>dataCenter.getUserFollowees(login, followersHandler(true)))
+            .then(()=>dataCenter.getUserOrgs(login, orgsHandler));
 }
 
 //loginProcedure('davglass').then(()=>console.log('done'), (err)=>console.log('error', err));
