@@ -3,7 +3,7 @@ var superagent = require('superagent');
 var colors = require('colors');
 var dataCenter = require('./dataCenter.js');
 
-var basicUrl = 'http://github6.cloudapp.net:1116/db/data';
+var basicUrl = 'http://localhost:1116/db/data';
 var userId = 'neo4j';
 
 if(typeof pwd === 'undefined')
