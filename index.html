@@ -8,8 +8,8 @@
     <link rel='stylesheet' type='text/css' href='scripts/vis-4.9.0/dist/vis.min.css' />
     <style type='text/css'>
     	.ufc{
-    		width : 600px;
-    		height: 400px;
+    		width : 800px;
+    		height: 600px;
     		border : 1px solid red;
     	}
     </style>
@@ -18,11 +18,6 @@
 <body>
 	<div id="mynetwork" class='ufc'></div>
 	<script type='text/javascript'>
-		function cutString(str, maxLen){
-			if(str.length <= maxLen)
-				return str;
-			return str.substring(0, maxLen - 3) + '...';
-		}
 		function convertData(neo4result){
 			var nodesMap = {};
 			var edges = [];
@@ -32,7 +27,7 @@
 					var nodeJ = graphI.nodes[j];
 					nodesMap[nodeJ.id] =  {
 						id : nodeJ.id,
-						label : nodeJ.properties.login,
+						label : nodeJ.properties.login
 					}
 				}
 				for(var k = 0; k < graphI.relationships.length; k++){
@@ -59,21 +54,33 @@
 				type : 'get'
 			}).then(function(data){
 				var container = document.getElementById('mynetwork');
-				data = convertData(data);
+				data = convertData(JSON.parse(data));
 				options = {
 					nodes : {
 						shape : 'box',
-						font : {
-							size : 18
+						borderWidth : 2,
+						color : {
+							background : '#68BDF6', border : '#5CA8DB',
+							highlight : {background : '#68BDF6', border : '#5CA8DB'}
 						},
-						physics : false
+						font : {
+							size : 12, color:'#FFFFFF'
+						},
+						labelHighlightBold : false,
+						physics : true
+						
 					},
 					edges : {
 						arrows : 'to',
-						physics : true
+						physics : false,
+						labelHighlightBold : false, font : {size : 10}, 
+						color : {
+							color : '#A5ABB6', highlight:'#A5ABB6', hover:'#A5ABB6'
+						},
+						selectionWidth : 0
 					},
 					layout : {
-						randomSeed : 3,
+						randomSeed : 0.1,
 						hierarchical : false
 					}
 				};
