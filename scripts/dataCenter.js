@@ -33,6 +33,8 @@ var ResultsPerPage = 100; // max number allowed by GitHub.
   'x-ratelimit-reset': '1446817687', ==> time of rate limit reset in seconds.
 */
 
+var wait = delay => new Promise(resolve => setTimeout(resolve, delay));
+
 function getBasicRequest(url){
     console.log(colors.green('Github request: ' + url ));
     return new Promise(function(resolve, reject){
@@ -43,15 +45,7 @@ function getBasicRequest(url){
             else{
                 var remainRequests = +res.header['x-ratelimit-remaining'];
                 console.log(colors.red('# of requests until limit is reached:' + remainRequests));
-                if(remainRequests === 0){
-                    var restoringTime = (+res.header['x-ratelimit-reset']) * 1000;
-                    var waitTime = restoringTime - Date.now();
-                    console.log(colors.red('please wait for ' + waitTime + 'ms'));
-                    setTimeout(()=>resolve(res), waitTime); 
-                }
-                else{
-                    resolve(res);
-                }
+                resolve(res);
             }
         });
     });
@@ -69,6 +63,14 @@ function getPaginatedData(url, dataHandler){
                     nextPage = links.next;
                 }
                 return dataHandler(res.body).then(()=>next(nextPage ? nextPage.url : null));
+            }, (err)=>{
+                if(err.status===403){
+                    var restoringTime = (+err.header['x-ratelimit-reset']) * 1000;
+                    var waitTime = restoringTime - Date.now();
+                    console.log(colors.red('please wait for ' + waitTime + 'ms'));
+                    return wait(waitTime).then(()=>next(url));                     
+                }
+                return err.status;
             });
         }
         else{
@@ -111,7 +113,7 @@ var dataCenter = module.exports = {
     return Promise.resolve(0);
 }
 
-dataCenter.getUserFollowers('trietptm', printData).then(exitCode => console.log);*/
+dataCenter.getUserFollowers('abrakadabr', printData).then(console.log);*/
 
 //var org = 'yahoo';
 //getPaginatedData(orgMembersEndPoint(org)).then(data=>data.map((d)=>d.login)).then(console.log);

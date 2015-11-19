@@ -3,8 +3,8 @@ var superagent = require('superagent');
 var colors = require('colors');
 var dataCenter = require('./dataCenter.js');
 
-var basicUrl = 'http://localhost:1116/db/data';
-var userId = 'neo4j';
+var basicUrl = 'http://localhost/db/data';
+var userId = 'neo4j'; 
 
 if(typeof pwd === 'undefined')
   return console.log('Please provide the neo4j password!');
@@ -19,8 +19,6 @@ var entityStatus = {
 
 // node --harmony githubCrawler org
 
-// users to handle : gabrielpconceicao, cusspvz
-// orgs : aspnet, dotnet
 if(process.argv.length >  2){//keep it simple for now
     orgLoop();
 }
@@ -57,7 +55,7 @@ function usersLoop(){
 
 function orgLoop(){
     var selectUnhandledOrg = buildTransactionQuery({
-        statement : 'match (o:Org) where o.status is null set u.status={orgStatus}.handled return o limit 1;',
+        statement : 'match (o:Org) where o.status is null set o.status={orgStatus}.handled return o limit 1;',
         parameters : {
             orgStatus : entityStatus
         }
